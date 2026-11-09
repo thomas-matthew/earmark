@@ -1,0 +1,11 @@
+.venv/
+.cache/
+data/
+experiments/data/
+__pycache__/
+*.wav
+*.mp3
+*.m4a
+.env
+.DS_Store
+experiments/sample_*.txt
