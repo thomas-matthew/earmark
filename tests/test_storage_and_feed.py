@@ -49,6 +49,9 @@ def test_feed_is_valid_rss_newest_first(ctx):
     assert [i.findtext("guid") for i in items] == ["hn:2", "hn:1"]
     assert items[0].findtext("title") == "A & B <test>"
     assert items[0].find("enclosure").get("url") == "http://100.1.2.3:8765/hn_2.mp3"
+    itunes = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
+    assert channel.find(f"{itunes}image").get("href") == "http://100.1.2.3:8765/cover.png"
+    assert (ctx.settings.feed_dir / "cover.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_retention_deletes_old_audio_but_keeps_the_record(ctx):

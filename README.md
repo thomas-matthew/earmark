@@ -196,6 +196,7 @@ src/earmark/
   storage/db.py       SQLite record of every item seen
   common/             HTTP helpers and ntfy alerts
   service/            LaunchAgents and `earmark doctor`
+scripts/make_cover.py redraws the feed's cover art (delivery/assets/cover.png)
 tests/                offline tests
 experiments/          feasibility prototypes
 ```

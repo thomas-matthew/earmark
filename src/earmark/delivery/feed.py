@@ -5,6 +5,15 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 FEED_NAME = "feed.xml"
+COVER_NAME = "cover.png"
+COVER = Path(__file__).parent / "assets" / COVER_NAME  # drawn by scripts/make_cover.py
+
+
+def _publish_cover(feed_dir: Path) -> None:
+    target = feed_dir / COVER_NAME
+    data = COVER.read_bytes()
+    if not target.exists() or target.read_bytes() != data:
+        target.write_bytes(data)
 
 
 def _attr(value: str) -> str:
@@ -31,12 +40,19 @@ def write_feed(db: sqlite3.Connection, feed_dir: Path, base_url: str) -> Path:
   <link>{escape(base_url)}/{FEED_NAME}</link>
   <description>Things I saved, retold for listening.</description>
   <language>en</language>
+  <image>
+    <url>{escape(base_url)}/{COVER_NAME}</url>
+    <title>Earmark</title>
+    <link>{escape(base_url)}/{FEED_NAME}</link>
+  </image>
+  <itunes:image href="{_attr(f"{base_url}/{COVER_NAME}")}"/>
   <itunes:block>Yes</itunes:block>
 {chr(10).join(entries)}
 </channel>
 </rss>
 """
     feed_dir.mkdir(parents=True, exist_ok=True)
+    _publish_cover(feed_dir)
     path = feed_dir / FEED_NAME
     tmp = path.with_suffix(".tmp")
     tmp.write_text(feed, encoding="utf-8")

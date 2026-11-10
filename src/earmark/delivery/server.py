@@ -7,7 +7,8 @@ from pathlib import Path
 
 from .feed import FEED_NAME
 
-SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+\.(mp3|xml)$")
+SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+\.(mp3|xml|png)$")
+CONTENT_TYPES = {"mp3": "audio/mpeg", "xml": "application/rss+xml; charset=utf-8", "png": "image/png"}
 
 
 def parse_range(header: str | None, size: int) -> tuple[int, int] | None:
@@ -55,7 +56,7 @@ def make_handler(feed_dir: Path):
                 return
             start, end = wanted or (0, size - 1)
             self.send_response(HTTPStatus.PARTIAL_CONTENT if wanted else HTTPStatus.OK)
-            self.send_header("Content-Type", "application/rss+xml; charset=utf-8" if name.endswith(".xml") else "audio/mpeg")
+            self.send_header("Content-Type", CONTENT_TYPES[name.rsplit(".", 1)[1]])
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(end - start + 1))
             if wanted:
