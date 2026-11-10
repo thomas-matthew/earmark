@@ -50,7 +50,7 @@ def test_feed_is_valid_rss_newest_first(ctx):
     assert items[0].findtext("title") == "A & B <test>"
     assert items[0].find("enclosure").get("url") == "http://100.1.2.3:8765/hn_2.mp3"
     itunes = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
-    assert channel.find(f"{itunes}image").get("href") == "http://100.1.2.3:8765/cover.png"
+    assert channel.find(f"{itunes}image").get("href").startswith("http://100.1.2.3:8765/cover.png?v=")
     assert (ctx.settings.feed_dir / "cover.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
