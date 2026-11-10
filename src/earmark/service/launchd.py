@@ -7,6 +7,7 @@ import os
 import plistlib
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from ..config import PROJECT, Settings
@@ -24,9 +25,23 @@ def _plist(label: str, args: list[str], logs: Path, extra: dict) -> dict:
                                  "PYTHONUNBUFFERED": "1"},
         "StandardOutPath": str(logs / f"{args[0]}.log"),
         "StandardErrorPath": str(logs / f"{args[0]}.log"),
-        "ProcessType": "Background" if args[0] == "run" else "Standard",
+        # Not "Background": macOS throttles those processes, which roughly halved narration speed.
+        "ProcessType": "Standard",
         **extra,
     }
+
+
+def _loaded(domain: str, label: str) -> bool:
+    return subprocess.run(["launchctl", "print", f"{domain}/{label}"], capture_output=True).returncode == 0
+
+
+def _bootout(domain: str, label: str, wait: float = 60) -> None:
+    """Unload a job and wait until it is gone. Unloading is asynchronous while the job is still
+    exiting, and loading the new version too early fails with an I/O error."""
+    subprocess.run(["launchctl", "bootout", f"{domain}/{label}"], capture_output=True)
+    deadline = time.time() + wait
+    while _loaded(domain, label) and time.time() < deadline:
+        time.sleep(0.5)
 
 
 def install(settings: Settings, hour: int, minute: int) -> list[Path]:
@@ -41,7 +56,7 @@ def install(settings: Settings, hour: int, minute: int) -> list[Path]:
     written = []
     for label, content in plists.items():
         path = AGENTS / f"{label}.plist"
-        subprocess.run(["launchctl", "bootout", f"{domain}/{label}"], capture_output=True)
+        _bootout(domain, label)
         path.write_bytes(plistlib.dumps(content))
         subprocess.run(["launchctl", "bootstrap", domain, str(path)], check=True)
         written.append(path)
@@ -51,7 +66,7 @@ def install(settings: Settings, hour: int, minute: int) -> list[Path]:
 def uninstall() -> None:
     domain = f"gui/{os.getuid()}"
     for label in (SERVE, RUN):
-        subprocess.run(["launchctl", "bootout", f"{domain}/{label}"], capture_output=True)
+        _bootout(domain, label)
         (AGENTS / f"{label}.plist").unlink(missing_ok=True)
 
 

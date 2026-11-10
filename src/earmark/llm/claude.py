@@ -12,6 +12,8 @@ from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ClaudeSDKClie
 
 CLI = Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude"
 API_KEY_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+# Tool results (long pages, images) travel through the SDK as single JSON messages; its 1 MB default is too small.
+MAX_MESSAGE_BYTES = 32 * 1024 * 1024
 
 
 class ClaudeError(Exception):
@@ -41,6 +43,7 @@ def options(system: str, cwd: str, model: str | None = None, mcp_servers: dict |
         system_prompt=system, model=model, tools=[], allowed_tools=allowed_tools or [], mcp_servers=mcp_servers or {},
         strict_mcp_config=True, setting_sources=[], permission_mode="dontAsk", max_turns=max_turns,
         cwd=cwd, cli_path=str(CLI), env=_env(),
+        max_buffer_size=MAX_MESSAGE_BYTES,
     )
 
 

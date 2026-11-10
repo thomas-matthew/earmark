@@ -1,7 +1,10 @@
 """The writer's read-only tools (L2). Each tool call is recorded, so the reviewer sees exactly the
 sources the writer saw."""
 import base64
+import subprocess
+import tempfile
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
@@ -9,8 +12,22 @@ from ..content.extract import fetch_bytes, read_page
 
 SERVER = "earmark"
 MAX_PAGE_CHARS = 120_000
-MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_DOWNLOAD_BYTES = 15 * 1024 * 1024
+MAX_IMAGE_BYTES = 3 * 1024 * 1024  # after shrinking; keeps tool messages well inside limits
+MAX_IMAGE_SIDE = 1568  # Claude scales larger images down to about this anyway
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def shrink(data: bytes, content_type: str) -> tuple[bytes, str]:
+    """Scale an image to at most MAX_IMAGE_SIDE pixels with macOS's built-in sips. Photos stay JPEG;
+    everything else becomes PNG, which keeps chart text sharp."""
+    kind = "jpeg" if content_type == "image/jpeg" else "png"
+    with tempfile.TemporaryDirectory() as tmp:
+        source, target = Path(tmp) / "in", Path(tmp) / f"out.{kind}"
+        source.write_bytes(data)
+        subprocess.run(["/usr/bin/sips", "-s", "format", kind, "-Z", str(MAX_IMAGE_SIDE), str(source), "--out", str(target)],
+                       check=True, capture_output=True, timeout=60)
+        return target.read_bytes(), f"image/{kind}"
 
 
 @dataclass
@@ -69,11 +86,17 @@ def build(material: str, budget: Budget, sources: Sources):
             return _text("Image limit reached.")
         budget.images -= 1
         try:
-            data, content_type, _ = fetch_bytes(args["url"], "image/*", MAX_IMAGE_BYTES)
+            data, content_type, _ = fetch_bytes(args["url"], "image/*", MAX_DOWNLOAD_BYTES)
         except (OSError, ValueError):
             return _text("The image could not be loaded.")
         if content_type not in IMAGE_TYPES:
             return _text(f"Unsupported image type {content_type}.")
+        try:
+            data, content_type = shrink(data, content_type)
+        except (OSError, subprocess.SubprocessError):
+            return _text("The image could not be processed.")
+        if len(data) > MAX_IMAGE_BYTES:
+            return _text("The image is too large to view.")
         sources.images_viewed.append(args["url"])
         return {"content": [{"type": "image", "data": base64.b64encode(data).decode(), "mimeType": content_type}]}
 

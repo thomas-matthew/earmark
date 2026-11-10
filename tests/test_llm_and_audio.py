@@ -45,6 +45,18 @@ def test_writer_prompt_has_no_unfilled_placeholders():
     assert "Fix every issue" in prompts.FIX
 
 
+def test_images_are_shrunk_before_the_writer_sees_them():
+    from pathlib import Path
+
+    from earmark.llm.tools import MAX_IMAGE_SIDE, shrink
+
+    cover = (Path(__file__).parents[1] / "src/earmark/delivery/assets/cover.png").read_bytes()
+    data, kind = shrink(cover, "image/png")
+    assert kind == "image/png" and data[:8] == b"\x89PNG\r\n\x1a\n"
+    width = int.from_bytes(data[16:20], "big")  # PNG header holds the width
+    assert width <= MAX_IMAGE_SIDE
+
+
 def test_chunks_respect_the_model_limit_and_keep_every_word():
     text = ("This is a sentence that goes on. " * 40) + ("word " * 200).strip() + "."
     pieces = chunks(text)
