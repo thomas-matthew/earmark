@@ -41,7 +41,7 @@ def badge(image: Image.Image, center: tuple[float, float], radius: float, u: flo
     ring = 14 * u
     draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=PAPER)
     draw.ellipse((cx - radius + ring, cy - radius + ring, cx + radius - ring, cy + radius - ring), fill=INK)
-    draw.text((cx, cy), INITIALS, font=bold_font(int(radius * 0.78)), fill=PAPER, anchor="mm")
+    draw.text((cx, cy), INITIALS, font=bold_font(int(radius * 0.84)), fill=PAPER, anchor="mm")
 
 
 def gradient() -> Image.Image:
@@ -60,7 +60,7 @@ def main() -> None:
     image = gradient()
     u = S / 1400  # layout unit, so the design is described at 1400 px
 
-    left, top, right, bottom = 380 * u, 250 * u, 1020 * u, 1150 * u
+    left, top, right, bottom = 330 * u, 210 * u, 970 * u, 1110 * u  # off-centre to leave room for the badge
     fold = 230 * u
     radius = 60 * u
 
@@ -88,7 +88,7 @@ def main() -> None:
         draw.rounded_rectangle((x, middle - half, x + bar, middle + half), bar / 2, fill=INK)
         x += bar + gap
 
-    badge(image, (right - 10 * u, bottom - 10 * u), 150 * u, u)
+    badge(image, (right + 30 * u, bottom), 220 * u, u)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     image.resize((SIZE, SIZE), Image.LANCZOS).save(OUT, optimize=True)
