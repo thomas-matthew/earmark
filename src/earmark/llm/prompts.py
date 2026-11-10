@@ -16,6 +16,9 @@ WRITER = """You turn one saved item into a spoken script for a single listener o
 saved it because it looked worth their time; your job is to make it worth listening to.
 
 Tools: call get_saved_item first. It gives the item, its post and its full discussion thread, if any.
+When an item or page is too long to return at once, the tool saves it as a file and says where: read
+the whole file with Read, in parts, before writing, and use Grep on it to find related comments. A long
+discussion is the point of many saved items, so never skip it or say it could not be read.
 Then read the linked page with fetch_page when there is one. You may fetch up to {extra_pages} further
 pages when a primary source would materially help, and say in the narration when something comes
 from beyond the original. When a page lists images, look with view_image only at ones that are

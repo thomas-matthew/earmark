@@ -137,6 +137,8 @@ def _publish(ctx: Context, settings: Settings, narrator: Narrator, row, script: 
     store.update(ctx.db, row["id"], status=status, episode_title=script.title or row["title"], description=description,
                  mp3=name, bytes=(settings.feed_dir / name).stat().st_size, seconds=seconds, published_at=time.time())
     write_feed(ctx.db, settings.feed_dir, settings.base_url)
+    if row["mp3"] and row["mp3"] != name:  # a regenerated episode replaces the old recording
+        (settings.feed_dir / row["mp3"]).unlink(missing_ok=True)
     log(f"  published: {script.title or row['title']} ({seconds / 60:.1f} min)")
 
 

@@ -4,13 +4,15 @@ The writer gathers sources with read-only tools and writes the script. A separat
 issues; code adds the ones it can prove (such as misquotes). The writer then fixes them in the same
 session, so it keeps its context. Anything still found after the fix is returned for logging."""
 import json
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 from . import prompts, reviewer, script, tools
 from .claude import ClaudeError, Session
 
 EXTRA_PAGES = 3
-MAX_TURNS = 30
+MAX_TURNS = 45  # room to read a long thread in parts as well as pages and images
 
 
 @dataclass
@@ -39,11 +41,17 @@ def brief(row, source_label: str, media: dict | None) -> str:
 
 
 async def write(row, material: str, source_label: str, media: dict | None = None, log=print) -> Result:
+    with tempfile.TemporaryDirectory(prefix="earmark-writer-") as folder:
+        return await _write(row, material, source_label, media, log, Path(folder))
+
+
+async def _write(row, material: str, source_label: str, media: dict | None, log, folder: Path) -> Result:
     sources = tools.Sources()
-    servers, allowed = tools.build(material, tools.Budget(pages=1 + EXTRA_PAGES + (1 if row["link"] else 0)), sources)
+    servers, allowed = tools.build(material, tools.Budget(pages=1 + EXTRA_PAGES + (1 if row["link"] else 0)),
+                                   sources, folder)
 
     async with Session(system_prompt(source_label, media), mcp_servers=servers, allowed_tools=allowed,
-                       max_turns=MAX_TURNS) as writer:
+                       max_turns=MAX_TURNS, workspace=str(folder)) as writer:
         draft = (await writer.ask(brief(row, source_label, media))).text
         if not sources.parts:
             raise ClaudeError("the writer never read the saved item")

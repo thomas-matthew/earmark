@@ -57,6 +57,36 @@ def test_images_are_shrunk_before_the_writer_sees_them():
     assert width <= MAX_IMAGE_SIDE
 
 
+def test_long_items_are_saved_as_a_file_for_reading_in_parts(tmp_path):
+    from earmark.llm.tools import INLINE_CHARS, WRAP_CHARS, inline_or_file
+
+    assert inline_or_file("short thread", tmp_path, "saved_item.txt", "The saved item") == "short thread"
+    assert not (tmp_path / "saved_item.txt").exists()
+
+    long_comment = "    [comment 7 by ann] " + "word " * 600
+    thread = "Hacker News story: Big one\n" + "\n".join(f"[comment {i} by u{i}] point {i}" for i in range(5000))
+    thread += "\n" + long_comment
+    reply = inline_or_file(thread, tmp_path, "saved_item.txt", "The saved item")
+    saved = (tmp_path / "saved_item.txt").read_text()
+    assert len(reply) < INLINE_CHARS and str(tmp_path / "saved_item.txt") in reply
+    assert reply.startswith("Hacker News story: Big one\n")
+    assert all(len(line) <= WRAP_CHARS for line in saved.splitlines())
+    assert saved.split() == thread.split()  # wrapping keeps every word
+    assert "      word" in saved  # wrapped lines keep the comment's indent
+
+
+def test_file_access_is_limited_to_the_session_folder(tmp_path):
+    from earmark.llm.claude import options
+
+    plain = options("system", str(tmp_path))
+    assert plain.tools == [] and plain.allowed_tools == []
+    reading = options("system", str(tmp_path), read_files=True, allowed_tools=["mcp__earmark__fetch_page"])
+    real = str(tmp_path.resolve())
+    assert reading.tools == ["Read", "Grep"]
+    assert reading.allowed_tools == ["mcp__earmark__fetch_page", f"Read(/{real}/**)", f"Grep(/{real}/**)"]
+    assert reading.permission_mode == "dontAsk"
+
+
 def test_chunks_respect_the_model_limit_and_keep_every_word():
     text = ("This is a sentence that goes on. " * 40) + ("word " * 200).strip() + "."
     pieces = chunks(text)

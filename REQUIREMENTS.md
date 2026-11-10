@@ -73,7 +73,7 @@ YouTube is not a source. It is only used when a saved item links to a video (C3)
 ### Script generation
 
 - L1. Plain code lists saved items, prevents duplicates and publishes the feed.
-- L2. A Claude Agent SDK agent (Python) gathers and writes each item's script, using only our own read-only tools. It has no shell or file access.
+- L2. A Claude Agent SDK agent (Python) gathers and writes each item's script, using only our own read-only tools. It has no shell and no write access. Its only file access is reading its own temporary folder, where sources too long for one tool result are saved (added 2026-11-10).
 - L3. A separate reviewer with no tools checks each script against its sources and only reports findings. The writer agent fixes them, in one review-and-fix round per item; any remaining findings are logged.
 - L4. Uses my Claude subscription for now. Whether unattended scheduled use is permitted is unclear, so an API key using plan credits remains the fallback.
 

@@ -97,7 +97,7 @@ Log in once with the bundled CLI:
 
 In the session that opens, type `/login`, choose your Claude account and finish in the browser, then exit with `/exit`. The login is stored in the macOS keychain, where the background service can also read it. If Claude Code is already installed and logged in on this Mac, the bundled CLI usually uses that login.
 
-Every Claude session runs with no shell or file access and no project settings. The only tools are Earmark's own read-only ones: read the saved item, fetch a public web page, and view an image.
+Every Claude session runs with no shell, no write access and no project settings. The writer's tools are Earmark's own read-only ones: read the saved item, fetch a public web page, and view an image. An item or page too long for one tool result (such as a Hacker News thread with hundreds of comments) is saved as a file in the writer's temporary folder, and the writer reads it in parts with the built-in Read and Grep tools. Permission rules limit those two tools to that folder; anything else on the Mac is refused.
 
 It is unclear whether subscription terms cover unattended daily use. If that becomes a problem, switch to an API key by setting `EARMARK_USE_API_KEY=1` and `ANTHROPIC_API_KEY` in `.env`.
 
