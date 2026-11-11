@@ -1,12 +1,13 @@
 """The reviewer (L3): a separate session with no tools that only reports issues. It never edits."""
 import json
 
-from . import prompts
+from . import models, prompts
 from .claude import ClaudeError, ask_once
 
 
 async def review(script: str, sources: str) -> list[dict]:
-    reply = await ask_once(prompts.REVIEWER, f"<source>\n{sources}\n</source>\n\n<script>\n{script}\n</script>")
+    reply = await ask_once(prompts.REVIEWER, f"<source>\n{sources}\n</source>\n\n<script>\n{script}\n</script>",
+                           model=models.REVIEWER)
     raw = reply.text
     try:
         findings = json.loads(raw[raw.index("["): raw.rindex("]") + 1])

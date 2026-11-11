@@ -3,11 +3,8 @@ A skip that Sonnet is unsure about counts as include, enforced here rather than 
 import json
 from dataclasses import dataclass
 
-from . import prompts
+from . import models, prompts
 from .claude import ClaudeError, ask_once
-
-MODEL = "sonnet"
-
 
 @dataclass
 class Decision:
@@ -32,5 +29,5 @@ def parse(raw: str) -> Decision:
 
 
 async def judge(title: str, source: str, material: str) -> Decision:
-    reply = await ask_once(prompts.RELEVANCE, f"Source: {source}\nTitle: {title}\n\n{material}", model=MODEL)
+    reply = await ask_once(prompts.RELEVANCE, f"Source: {source}\nTitle: {title}\n\n{material}", model=models.RELEVANCE)
     return parse(reply.text)

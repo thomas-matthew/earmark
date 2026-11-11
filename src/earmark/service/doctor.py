@@ -24,8 +24,9 @@ def run(settings: Settings, include_x: bool) -> bool:
     print("Checking Earmark setup:")
 
     def claude():
+        from ..llm import models
         from ..llm.claude import ask_once
-        reply = asyncio.run(ask_once("Reply with exactly: OK", "Are you there?", model="haiku"))
+        reply = asyncio.run(ask_once("Reply with exactly: OK", "Are you there?", model=models.DOCTOR))
         return f"replied in {reply.seconds:.0f}s"
 
     def reddit():

@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import prompts, reviewer, script, tools
+from . import models, prompts, reviewer, script, tools
 from .claude import ClaudeError, Session
 
 EXTRA_PAGES = 3
@@ -50,7 +50,7 @@ async def _write(row, material: str, source_label: str, media: dict | None, log,
     servers, allowed = tools.build(material, tools.Budget(pages=1 + EXTRA_PAGES + (1 if row["link"] else 0)),
                                    sources, folder)
 
-    async with Session(system_prompt(source_label, media), mcp_servers=servers, allowed_tools=allowed,
+    async with Session(system_prompt(source_label, media), model=models.WRITER, mcp_servers=servers, allowed_tools=allowed,
                        max_turns=MAX_TURNS, workspace=str(folder)) as writer:
         draft = (await writer.ask(brief(row, source_label, media))).text
         if not sources.parts:

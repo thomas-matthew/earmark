@@ -184,6 +184,7 @@ src/earmark/
     media.py          original audio for linked videos and podcasts
   llm/
     claude.py         Agent SDK sessions, locked down
+    models.py         which Claude model each job uses (change models here)
     prompts.py        relevance, writer and reviewer instructions
     relevance.py      Sonnet check for Reddit and X
     tools.py          the writer's read-only tools
