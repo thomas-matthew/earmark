@@ -17,6 +17,7 @@ SEED = 7
 MAX_CHUNK_CHARS = 420  # the model caps each generation, so long paragraphs are split by sentence
 TARGET_LOUDNESS = 0.06  # RMS every spoken piece is leveled to
 PARAGRAPH_GAP, CHUNK_GAP, MEDIA_GAP = 0.5, 0.12, 1.0
+MLX_CACHE_BYTES = 1 << 30  # 1 GB
 
 VOICES = {
     "N": {
@@ -85,8 +86,12 @@ class Narrator:
     def _load(self) -> None:
         if self._model is not None:
             return
+        import mlx.core as mx
         from mlx_audio.tts.utils import load_model
 
+        # MLX keeps freed GPU buffers for reuse, and without a limit that cache grew to about 28 GB
+        # on top of the 8 GB model. Capping it kept narration as fast and memory flat.
+        mx.set_cache_limit(MLX_CACHE_BYTES)
         self._model = load_model(MODEL)
         self.voices_dir.mkdir(parents=True, exist_ok=True)
         for tag, voice in VOICES.items():
