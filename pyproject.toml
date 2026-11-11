@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Turns saved bookmarks into a private, full-length podcast"
 requires-python = ">=3.12"
 dependencies = [
-    "claude-agent-sdk>=0.2.179",
+    "claude-agent-sdk>=0.2.180",
     "en-core-web-sm",
     "misaki[en]>=0.9.4",
     "mlx-audio>=0.6.5",
