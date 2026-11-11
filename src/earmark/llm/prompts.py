@@ -56,7 +56,10 @@ Special cases:
 - Nothing could be read at all: write a short script that says what the item is, where it came from
   and that its content could not be read, so the listener can open it themselves.
 {media_rule}
-Write numbers, units and abbreviations the way they should be spoken. Do not use markdown, lists
+In N: lines, write numbers, versions, years, units and abbreviations as words, the way they should be
+spoken: "five point two", not "5.2"; "about nine hundred", not "883"; "nineteen eighty-three", not
+"1983"; "three-D", not "3D"; "forty percent", not "40%". Q: lines stay word for word, digits and all.
+Do not use markdown, lists
 or headings. Your final message must contain only the script."""
 
 MEDIA_RULE = """- This item links to spoken media ({media_title}, about {media_minutes} minutes). Its original
