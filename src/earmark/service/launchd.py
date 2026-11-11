@@ -5,6 +5,7 @@
 """
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 import time
@@ -14,8 +15,8 @@ from ..config import PROJECT, Settings
 
 AGENTS = Path.home() / "Library" / "LaunchAgents"
 SERVE, RUN = "dev.earmark.serve", "dev.earmark.run"
-# The names System Settings > General > Login Items shows for each agent
-NAMES = {SERVE: "Earmark Feed Server", RUN: "Earmark Daily Run"}
+# The names System Settings > General > Login Items shows for each agent. "(TM App)" marks apps I built myself.
+NAMES = {SERVE: "Earmark Feed Server (TM App)", RUN: "Earmark Daily Run (TM App)"}
 
 
 def _launcher(folder: Path, name: str, args: list[str]) -> Path:
@@ -75,6 +76,9 @@ def install(settings: Settings, hour: int, minute: int) -> list[Path]:
         path.write_bytes(plistlib.dumps(content))
         subprocess.run(["launchctl", "bootstrap", domain, str(path)], check=True)
         written.append(path)
+    for old in (settings.data / "service").iterdir():  # launchers left from earlier names
+        if old.name not in NAMES.values():
+            shutil.rmtree(old) if old.is_dir() else old.unlink()
     return written
 
 
@@ -83,8 +87,8 @@ def uninstall(settings: Settings | None = None) -> None:
     for label in (SERVE, RUN):
         _bootout(domain, label)
         (AGENTS / f"{label}.plist").unlink(missing_ok=True)
-        if settings:
-            (settings.data / "service" / NAMES[label]).unlink(missing_ok=True)
+    if settings:
+        shutil.rmtree(settings.data / "service", ignore_errors=True)
 
 
 def start_run_now() -> None:

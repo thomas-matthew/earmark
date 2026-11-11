@@ -140,7 +140,7 @@ This installs two LaunchAgents in `~/Library/LaunchAgents`:
 - `dev.earmark.serve`: the feed server. It starts at login and restarts if it stops.
 - `dev.earmark.run`: the daily run. If the Mac is asleep at the scheduled time, it runs on wake.
 
-In System Settings, then General, then Login Items, they show as **Earmark Feed Server** and **Earmark Daily Run**. Each agent starts a small launcher script with that name in `data/service/`, which then starts Earmark's Python; macOS names background items after the program they start.
+In System Settings, then General, then Login Items, they show as **Earmark Feed Server (TM App)** and **Earmark Daily Run (TM App)**. Each agent starts a small launcher script with that name in `data/service/`, which then starts Earmark's Python; macOS names background items after the program they start.
 
 Logs go to `data/logs/`. Remove the service with `uv run earmark uninstall`.
 
