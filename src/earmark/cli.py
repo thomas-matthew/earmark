@@ -75,7 +75,7 @@ def cmd_install(settings, args) -> None:
 def cmd_uninstall(settings, args) -> None:
     from .service import launchd
 
-    launchd.uninstall()
+    launchd.uninstall(settings)
     print("Removed the Earmark background service.")
 
 
