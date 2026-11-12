@@ -36,7 +36,7 @@ YouTube is not a source. It is only used when a saved item links to a video (C3)
 
 ### Content
 
-- C1. For a link, fetch the complete page content.
+- C1. For a link, fetch the complete page content. Pages that only render with JavaScript are opened in headless Chrome; short links are expanded; X posts linked from a saved X post or its thread are fetched through the X API (added 2026-11-12).
 - C2. For a post, include the whole thread.
 - C2a. A saved Reddit item can be a whole post or a single comment. A saved comment becomes the focus of its episode, with its parent post as context.
 - C2b. An X Article is read from its full text in the API, not from the short post that carries it. An author's thread is fetched while it is recent, so X is checked at least daily.

@@ -15,7 +15,7 @@ sources ──> relevance check ──> writer agent ⇄ reviewer ──> Breeze
 
 1. **Find new saves.** Each source lists my saved items. Items already in the local database are ignored, so nothing is made twice. Earmark never changes anything on the platforms.
 2. **Relevance check.** Reddit and X saves are judged one at a time by Sonnet on the full post and thread. A skip that Sonnet is unsure about counts as include. Skips are logged and can be overridden.
-3. **Write.** A Claude Agent SDK agent reads the item, its thread and the linked page (and can look at charts), then writes a script. A separate reviewer with no tools checks the script against the sources and reports problems, and the writer fixes them in one round.
+3. **Write.** A Claude Agent SDK agent reads the item, its thread and the linked page (and can look at charts), then writes a script. Short links such as `t.co` are expanded, X posts linked from a saved post or its thread are fetched through the X API, and pages that only render with JavaScript are opened in headless Chrome. A separate reviewer with no tools checks the script against the sources and reports problems, and the writer fixes them in one round.
 4. **Voice.** Breeze TTS 2 narrates locally on the Mac's GPU, with a second voice for quoted comments. When a save links to a YouTube video or podcast episode, its original audio plays inside the episode.
 5. **Publish.** The episode joins the RSS feed. Audio is deleted after 30 days.
 
@@ -40,6 +40,8 @@ export HF_HOME="$HOME/Dev/labs/huggingface"
 ```
 
 Breeze TTS 2 (about 7.4 GB) downloads there on the first run. Its licence allows personal, non-commercial use only.
+
+Google Chrome must be installed in `/Applications`. Earmark uses it, headless and with a fresh throwaway profile, to read pages that only show their text after running JavaScript. Without Chrome, those pages are read as plain HTML and usually come back empty.
 
 ### 2. Create `.env`
 
@@ -181,6 +183,7 @@ src/earmark/
     x/                X: auth.py (OAuth), api.py (spend meter), __init__.py (bookmarks, threads)
   content/
     extract.py        page text and image lists, public addresses only
+    browser.py        headless Chrome for pages drawn by JavaScript
     media.py          original audio for linked videos and podcasts
   llm/
     claude.py         Agent SDK sessions, locked down

@@ -25,6 +25,50 @@ def test_x_bookmark_with_article_and_external_link():
     assert item.payload["text"] == "the long version" and item.payload["quoted"] == ["quoted words"]
 
 
+def test_x_short_links_are_expanded_and_linked_posts_found():
+    reply = {"id": "11", "text": "more: https://t.co/aaa and https://t.co/bbb", "entities": {"urls": [
+        {"url": "https://t.co/aaa", "expanded_url": "https://x.com/bob/status/77?s=20"},
+        {"url": "https://t.co/bbb", "expanded_url": "https://site.dev", "unwound_url": "https://site.dev/home"}]}}
+    text = x._text(reply)
+    assert text == "more: https://x.com/bob/status/77?s=20 and https://site.dev/home"
+    assert x.linked_posts([text, "see https://twitter.com/carol/status/88 and x.com/bob/status/77"], skip={"88"}) == ["77"]
+
+
+def test_x_enrich_fetches_thread_and_linked_posts(ctx, monkeypatch):
+    calls = []
+
+    def fake_get(_ctx, path, params=None):
+        calls.append(path)
+        if path == "/tweets/search/recent":
+            return {"data": [{"id": "11", "created_at": "2", "text": "part two https://t.co/a",
+                              "entities": {"urls": [{"url": "https://t.co/a", "expanded_url": "https://x.com/me/status/50"}]}}]}
+        if path == "/tweets":
+            assert params["ids"] == "50"
+            return {"data": [{"id": "50", "author_id": "u1", "text": "what the site is"}],
+                    "includes": {"users": [{"id": "u1", "username": "me"}]}}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(x.api, "get", fake_get)
+    item = Item("x:10", "x", "post", "t", "u", 0.0, payload={"author": "me", "conversation_id": "10", "text": "look"})
+    x.enrich(ctx, item)
+    assert item.payload["thread"] == ["part two https://x.com/me/status/50"]
+    assert item.payload["linked"] == [{"author": "me", "text": "what the site is"}]
+    material = x.material(ctx, {"payload": json.dumps(item.payload), "link": None})
+    assert "<linked_x_post by=@me>\nwhat the site is" in material
+
+
+def test_tiny_refresh_pages_are_followed_and_script_pages_use_the_browser():
+    from earmark.content.extract import Page, needs_browser, refresh_target
+
+    tco = b'<head><meta name="referrer" content="always"><noscript><META http-equiv="refresh" content="0;URL=https://site.dev/a?x=1&amp;y=2"></noscript></head>'
+    assert refresh_target(tco, "text/html", "https://t.co/z") == "https://site.dev/a?x=1&y=2"
+    assert refresh_target(b'<script>location.replace("https:\\/\\/site.dev\\/b")</script>', "text/html", "https://t.co/z") == "https://site.dev/b"
+    assert refresh_target(tco + b" " * 5000, "text/html", "https://t.co/z") is None  # a real page, not a notice
+    assert needs_browser("<script src=app.js></script>", Page("u", None, "This site needs JavaScript to run."))
+    assert not needs_browser("<script></script>", Page("u", None, "word " * 200))
+    assert not needs_browser("<p>short</p>", Page("u", None, "short"))
+
+
 def test_reddit_saved_comment_points_at_its_thread():
     child = {"kind": "t1", "data": {"name": "t1_abc", "link_title": "A post", "permalink": "/r/s/comments/p1/a_post/abc/",
                                     "link_permalink": "https://www.reddit.com/r/s/comments/p1/a_post/",

@@ -1,6 +1,7 @@
 """X bookmarks (S1) through the official API, including X Article full text and the author's
 thread (C2b). Threads are only searchable for about a week, so they are fetched as soon as an item is found."""
 import json
+import re
 import time
 import urllib.parse
 from datetime import datetime
@@ -17,6 +18,8 @@ TWEET_FIELDS = "note_tweet,entities,conversation_id,created_at,referenced_tweets
 OWN_HOSTS = {"x.com", "twitter.com", "www.x.com", "www.twitter.com", "t.co", "mobile.twitter.com"}
 FIRST_RUN_PAGES, LATER_PAGES = 5, 3
 MAX_LOOKBACK_DAYS = 62
+MAX_LINKED_POSTS = 5  # other X posts linked from the saved post or its thread, fetched at about $0.005 each
+STATUS_LINK = re.compile(r"https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/(\w+)/status/(\d+)", re.I)
 
 
 def _date(value: str | None) -> float:
@@ -24,7 +27,25 @@ def _date(value: str | None) -> float:
 
 
 def _text(tweet: dict) -> str:
-    return (tweet.get("note_tweet") or {}).get("text") or tweet.get("text", "")
+    """The post's full text with its t.co short links replaced by the addresses they stand for."""
+    note = tweet.get("note_tweet") or {}
+    text = note.get("text") or tweet.get("text", "")
+    entities = note.get("entities") if note.get("text") else tweet.get("entities")
+    for link in (entities or {}).get("urls", []):
+        short, full = link.get("url"), link.get("unwound_url") or link.get("expanded_url")
+        if short and full:
+            text = text.replace(short, full)
+    return text
+
+
+def linked_posts(texts: list[str], skip: set[str]) -> list[str]:
+    """IDs of X posts linked from these texts, in order, leaving out the ones in skip."""
+    ids = []
+    for text in texts:
+        for _, post_id in STATUS_LINK.findall(text):
+            if post_id not in skip and post_id not in ids:
+                ids.append(post_id)
+    return ids[:MAX_LINKED_POSTS]
 
 
 def external_link(tweet: dict) -> str | None:
@@ -82,21 +103,32 @@ def fetch(ctx: Context, known: set[str], first_run: bool) -> list[Item]:
 
 
 def enrich(ctx: Context, item: Item) -> None:
-    """Fetch the author's thread while it is still searchable. Called only for items that will be processed."""
+    """Fetch the author's thread while it is still searchable, then any X posts linked from the post or
+    thread, since x.com pages cannot be read without a login. Called only for items that will be processed."""
     payload = item.payload
+    own_id = item.id.split(":", 1)[1]
     conversation = payload.get("conversation_id")
-    if not conversation:
-        return
-    query = f"conversation_id:{conversation} from:{payload['author']}"
-    found = api.get(ctx, "/tweets/search/recent", {"query": query, "max_results": 100,
-                                                  "tweet.fields": "note_tweet,created_at"}).get("data") or []
-    posts = {t["id"]: t for t in found}
-    if conversation != item.id.split(":", 1)[1] and conversation not in posts:
-        root = api.get(ctx, f"/tweets/{conversation}", {"tweet.fields": "note_tweet,created_at,author_id"}).get("data")
-        if root and root.get("author_id") == payload.get("author_id"):
-            posts[root["id"]] = root
-    thread = sorted(posts.values(), key=lambda t: t.get("created_at", ""))
-    payload["thread"] = [_text(t) for t in thread if t["id"] != item.id.split(":", 1)[1]]
+    posts: dict[str, dict] = {}
+    if conversation:
+        query = f"conversation_id:{conversation} from:{payload['author']}"
+        found = api.get(ctx, "/tweets/search/recent", {"query": query, "max_results": 100,
+                                                      "tweet.fields": "note_tweet,entities,created_at"}).get("data") or []
+        posts = {t["id"]: t for t in found}
+        if conversation != own_id and conversation not in posts:
+            root = api.get(ctx, f"/tweets/{conversation}",
+                           {"tweet.fields": "note_tweet,entities,created_at,author_id"}).get("data")
+            if root and root.get("author_id") == payload.get("author_id"):
+                posts[root["id"]] = root
+        thread = sorted(posts.values(), key=lambda t: t.get("created_at", ""))
+        payload["thread"] = [_text(t) for t in thread if t["id"] != own_id]
+    texts = [payload.get("text", ""), *(payload.get("quoted") or []), *(payload.get("thread") or [])]
+    wanted = linked_posts(texts, skip={own_id, *posts})
+    if wanted:
+        page = api.get(ctx, "/tweets", {"ids": ",".join(wanted), "tweet.fields": "note_tweet,entities,author_id",
+                                       "expansions": "author_id", "user.fields": "username"})
+        users = {u["id"]: u["username"] for u in (page.get("includes") or {}).get("users") or []}
+        payload["linked"] = [{"author": users.get(t.get("author_id"), "unknown"), "text": _text(t)}
+                             for t in page.get("data") or []]
 
 
 def material(ctx: Context, row) -> str:
@@ -106,6 +138,8 @@ def material(ctx: Context, row) -> str:
         parts.append(f"<quoted_post>\n{quote}\n</quoted_post>")
     if p.get("thread"):
         parts.append("<author_thread>\n" + "\n---\n".join(p["thread"]) + "\n</author_thread>")
+    for linked in p.get("linked") or []:
+        parts.append(f"<linked_x_post by=@{linked['author']}>\n{linked['text']}\n</linked_x_post>")
     if p.get("article_text"):
         parts.append(f"<x_article title={p.get('article_title')!r}>\n{p['article_text']}\n</x_article>")
     return "\n\n".join(parts)
