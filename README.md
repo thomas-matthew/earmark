@@ -41,7 +41,17 @@ export HF_HOME="$HOME/Dev/labs/huggingface"
 
 Breeze TTS 2 (about 7.4 GB) downloads there on the first run. Its licence allows personal, non-commercial use only.
 
-Google Chrome must be installed in `/Applications`. Earmark uses it, headless and with a fresh throwaway profile, to read pages that only show their text after running JavaScript. Without Chrome, those pages are read as plain HTML and usually come back empty.
+Google Chrome must be installed in `/Applications`. Earmark uses it, headless, to read pages that only show their text after running JavaScript. Without Chrome, those pages are read as plain HTML and usually come back empty.
+
+Nothing from your own Chrome reaches it. Each launch uses an empty profile folder that Earmark creates in the temp directory and deletes afterwards. Before any page loads, Earmark checks that:
+
+- Chrome reports using that folder.
+- The flags that turn off extensions, sync, the macOS keychain and background calls to Google are all set.
+- Chrome's own sandbox is on.
+- No Chrome policy applies to the browser.
+- There are no cookies.
+
+If any check fails, the page is read without the browser.
 
 ### 2. Create `.env`
 
@@ -215,6 +225,10 @@ Runtime data lives in `data/` (git-ignored): the database, feed and episodes, vo
 uv run pytest
 ```
 
-The tests run offline and need no logins.
+The tests run offline and need no logins. To also run the test that drives the real Chrome and visits X, Reddit and Substack to confirm it arrives signed out:
+
+```bash
+EARMARK_BROWSER_TESTS=1 uv run pytest tests/test_browser.py
+```
 
 `experiments/` holds the throwaway prototypes used to test feasibility before the requirements were frozen. They still use the project's working name, Bookcast, internally, and are not part of the app.
