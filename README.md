@@ -13,7 +13,7 @@ sources ──> relevance check ──> writer agent ⇄ reviewer ──> Breeze
  HN)
 ```
 
-1. **Find new saves.** Each source lists my saved items. Items already in the local database are ignored, so nothing is made twice. Earmark never changes anything on the platforms.
+1. **Find new saves.** Each source lists my saved items. On Substack that means both saved posts and likes: liked posts, and liked Notes with their text, images and the post or links they share. Items already in the local database are ignored, so nothing is made twice. Earmark never changes anything on the platforms.
 2. **Relevance check.** Reddit and X saves are judged one at a time by Sonnet on the full post and thread. A skip that Sonnet is unsure about counts as include. Skips are logged and can be overridden.
 3. **Write.** A Claude Agent SDK agent reads the item, its thread and the linked page (and can look at charts), then writes a script. Short links such as `t.co` are expanded, X posts linked from a saved post or its thread are fetched through the X API, and pages that only render with JavaScript are opened in headless Chrome. A separate reviewer with no tools checks the script against the sources and reports problems, and the writer fixes them in one round.
 4. **Voice.** Breeze TTS 2 narrates locally on the Mac's GPU, with a second voice for quoted comments. When a save links to a YouTube video or podcast episode, its original audio plays inside the episode.
@@ -176,7 +176,7 @@ uv run earmark serve                 # run the feed server in the foreground
 
 The **first run** looks back one month, or two months if one month has fewer than 10 saves. Older saves are recorded so they are never processed. Only Substack records when something was saved, so for X, Reddit and Hacker News the post's own date is used. After that, every new save is processed, however old the post.
 
-**Item ids** look like `x:<post id>`, `reddit:t3_<id>` (post) or `reddit:t1_<id>` (comment), `substack:<id>` and `hn:<id>`.
+**Item ids** look like `x:<post id>`, `reddit:t3_<id>` (post) or `reddit:t1_<id>` (comment), `substack:<id>` (a saved or liked post, recorded once even if both), `substack:c-<id>` (a liked Note) and `hn:<id>`. Substack likes have their own first run, so likes older than the look-back are recorded without episodes.
 
 **Failures:** an item that fails is retried on the next runs. After three failures, a short episode says it couldn't be prepared, with the link in the episode notes. If several items fail in a row, the run stops early and sends an alert.
 
@@ -189,7 +189,7 @@ src/earmark/
   pipeline.py         one daily run, start to finish
   sources/            one module per platform (read-only)
     base.py           shared interface
-    hn.py  reddit.py  substack.py
+    hn.py  reddit.py  substack.py  substack_likes.py
     x/                X: auth.py (OAuth), api.py (spend meter), __init__.py (bookmarks, threads)
   content/
     extract.py        page text and image lists, public addresses only

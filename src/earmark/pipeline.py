@@ -73,8 +73,8 @@ def sync(ctx: Context, settings: Settings, report: Report, only: set[str] | None
             notify.send(settings, "Earmark: X credit used up", "Add X API credit to keep checking bookmarks.", "high")
             continue
         except Exception as exc:  # noqa: BLE001  one broken source must not stop the others
-            report.failures.append(f"{module.LABEL} check failed: {exc}")
-            log(f"{module.LABEL}: check failed: {exc}")
+            report.failures.append(f"{_log_label(module)} check failed: {exc}")
+            log(f"{_log_label(module)}: check failed: {exc}")
             continue
         fetched[module.NAME] = (first_run, items)
 
@@ -90,14 +90,14 @@ def sync(ctx: Context, settings: Settings, report: Report, only: set[str] | None
                 try:
                     module.enrich(ctx, item)
                 except Exception as exc:  # noqa: BLE001  the item is still useful without its thread
-                    log(f"{module.LABEL}: could not fetch the thread for {item.id}: {exc}")
+                    log(f"{_log_label(module)}: could not fetch the thread for {item.id}: {exc}")
             # Backfilled items keep their own date for ordering; later items are ordered by when they were found.
             inserted = store.insert(ctx.db, item, "baseline" if old else "new", sort_at=item.item_date if first_run else None)
             baseline += inserted and old
             added += inserted and not old
         store.meta_set(ctx.db, f"synced:{name}", str(now))
         report.found += added
-        log(f"{module.LABEL}: {added} new" + (f", {baseline} older items recorded without processing" if first_run else ""))
+        log(f"{_log_label(module)}: {added} new" + (f", {baseline} older items recorded without processing" if first_run else ""))
 
 
 def check_x_spending(ctx: Context, settings: Settings) -> None:
@@ -111,8 +111,17 @@ def check_x_spending(ctx: Context, settings: Settings) -> None:
 
 # --- Making episodes ---------------------------------------------------------------------------
 
-def _description(row, label: str, remaining: int) -> str:
-    parts = [f"Saved on {label}.", f"Original: {row['url']}"]
+def _log_label(module) -> str:
+    return getattr(module, "LOG_LABEL", module.LABEL)
+
+
+def _saved_on(module) -> str:
+    """How the item came to me, e.g. "saved on Reddit" or "liked on Substack"."""
+    return f"{getattr(module, 'SAVED_VERB', 'saved')} on {module.LABEL}"
+
+
+def _description(row, module, remaining: int) -> str:
+    parts = [f"{_saved_on(module).capitalize()}.", f"Original: {row['url']}"]
     if row["link"] and row["link"] != row["url"]:
         parts.append(f"Link: {row['link']}")
     if remaining:
@@ -144,7 +153,7 @@ def _publish(ctx: Context, settings: Settings, narrator: Narrator, row, script: 
 
 def process(ctx: Context, settings: Settings, narrator: Narrator, row, report: Report) -> None:
     module = sources.BY_NAME[row["source"]]
-    log(f"{module.LABEL}: {row['title'][:80]} ({row['id']})")
+    log(f"{_log_label(module)}: {row['title'][:80]} ({row['id']})")
     material = module.material(ctx, row)
 
     if module.FILTERED and row["decision"] is None:
@@ -175,7 +184,7 @@ def process(ctx: Context, settings: Settings, narrator: Narrator, row, report: R
         finally:
             for leftover in work.glob("*"):
                 leftover.unlink()
-    _publish(ctx, settings, narrator, row, result.script, _description(row, module.LABEL, len(result.remaining)),
+    _publish(ctx, settings, narrator, row, result.script, _description(row, module, len(result.remaining)),
              "done", media_audio)
     if result.remaining:
         log("  remaining review issues: " + json.dumps(result.remaining, ensure_ascii=False)[:2000])
@@ -184,11 +193,11 @@ def process(ctx: Context, settings: Settings, narrator: Narrator, row, report: R
 
 def give_up(ctx: Context, settings: Settings, narrator: Narrator, row, error: str) -> None:
     """After repeated failures, publish a short episode saying so (A6), so the item is not lost."""
-    label = sources.BY_NAME[row["source"]].LABEL
+    module = sources.BY_NAME[row["source"]]
     script = Script(f"Could not prepare: {row['title'][:60]}", [Line("N", (
-        f"This is an item you saved on {label}, titled {row['title']}. Earmark tried {MAX_ATTEMPTS} times "
+        f"This is an item you {_saved_on(module)}, titled {row['title']}. Earmark tried {MAX_ATTEMPTS} times "
         f"but could not prepare it, so open it yourself from the episode notes."))])
-    _publish(ctx, settings, narrator, row, script, _description(row, label, 0) + f"\nError: {error[:300]}", "failed")
+    _publish(ctx, settings, narrator, row, script, _description(row, module, 0) + f"\nError: {error[:300]}", "failed")
 
 
 def run(settings: Settings, limit: int | None = None, only_sources: set[str] | None = None,

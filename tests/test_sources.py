@@ -150,3 +150,52 @@ def test_a_failing_source_does_not_stop_the_others(ctx, monkeypatch):
     pipeline.sync(ctx, ctx.settings, report)
     assert report.found == 1 and report.failures == ["Broken login is no longer accepted"]
     assert store.meta_get(ctx.db, "synced:b") is None  # its first run happens once the login works again
+
+
+def _like(kind, when, **fields):
+    entry = {"type": kind, "context": {"type": f"{'post' if kind == 'post' else 'note'}_like", "timestamp": when}}
+    entry.update(fields)
+    return entry
+
+
+def test_substack_liked_note_keeps_text_images_shared_post_and_links():
+    from earmark.sources import substack_likes
+    entry = _like("comment", "2026-11-15T16:00:35.208Z", parentComments=[{"handle": "ann", "body": "Original note"}], comment={
+        "id": 42, "handle": "elvis", "name": "Elvis", "date": "2026-11-14T16:18:02Z",
+        "body": "Self-Improving AI Agents\n\nA whole course on it.",
+        "body_json": {"type": "doc", "content": [{"type": "paragraph", "content": [
+            {"type": "text", "text": "course", "marks": [{"type": "link", "attrs": {"href": "https://cs.stanford.edu/329a"}}]}]}]},
+        "attachments": [{"type": "image", "imageUrl": "https://cdn.example/slide.webp"},
+                        {"type": "post", "post": {"title": "Autocomplete", "canonical_url": "https://b.substack.com/p/auto",
+                                                  "audience": "only_paid"}}]})
+    item = substack_likes.to_item(entry)
+    assert item.id == "substack:c-42" and item.source == "substack_likes" and item.kind == "note"
+    assert item.title == "Note by Elvis: Self-Improving AI Agents"
+    assert item.url == "https://substack.com/@elvis/note/c-42" and item.link == "https://b.substack.com/p/auto"
+    row = {"kind": "note", "url": item.url, "payload": json.dumps(item.payload)}
+    material = substack_likes.material(None, row)
+    for part in ("<replying_to by=@ann>\nOriginal note", "<note>\nSelf-Improving AI Agents", "1. https://cdn.example/slide.webp",
+                 "Autocomplete (https://b.substack.com/p/auto)", "only its free preview", "https://cs.stanford.edu/329a"):
+        assert part in material
+
+
+def test_substack_likes_first_run_dedupes_saved_posts_and_later_runs_stop_at_known(ctx, monkeypatch):
+    from earmark.sources import substack_likes
+    post = lambda i, when: _like("post", when, publication={"id": 7, "name": "Radar"},
+                                 post={"id": i, "publication_id": 7, "title": f"P{i}", "canonical_url": f"https://r.example/p/{i}", "audience": "everyone"})
+    pages = {None: {"items": [post(3, "2026-11-13T00:00:00Z"), post(2, "2026-11-01T00:00:00Z")], "nextCursor": "c1"},
+             "c1": {"items": [post(1, "2025-06-01T00:00:00Z")], "nextCursor": None}}
+
+    def fake_get(_ctx, url):
+        if url.endswith("/profile/self"):
+            return {"id": 99}
+        assert "/feed/profile/99?types=like" in url
+        return pages["c1" if "cursor=c1" in url else None]
+
+    monkeypatch.setattr(substack_likes.substack, "get_json", fake_get)
+    store.insert(ctx.db, Item("substack:2", "substack", "article", "P2", "u", 0.0), "done")  # also saved
+    first = substack_likes.fetch(ctx, set(), first_run=True)
+    assert [i.id for i in first] == ["substack:3", "substack:1"]
+    assert first[0].payload["publication"] == "Radar" and first[0].source == "substack_likes"
+    later = substack_likes.fetch(ctx, {"substack:3"}, first_run=False)
+    assert later == []  # the first page holds a known like, so older pages are not read

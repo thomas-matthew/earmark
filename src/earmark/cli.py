@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> None:
 
     run = sub.add_parser("run", help="check sources, make new episodes and publish the feed")
     run.add_argument("--limit", type=int, help="process at most this many items")
-    run.add_argument("--source", help="only check these sources, comma separated: x,reddit,substack,hn")
+    run.add_argument("--source", help="only check these sources, comma separated: x,reddit,substack,substack_likes,hn")
     run.add_argument("--item", action="append", help="process this item id (repeatable)")
     run.add_argument("--no-sync", action="store_true", help="do not check sources, only process waiting items")
     run.set_defaults(handler=cmd_run)

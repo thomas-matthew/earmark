@@ -16,11 +16,11 @@ API = "https://substack.com/api/v1/reader/posts?inboxType=saved&limit=20"
 MAX_PAGES = 25
 
 
-def _page(ctx: Context, cursor: str | None) -> dict:
+def get_json(ctx: Context, url: str) -> dict:
+    """A read-only GET to Substack with my session cookie."""
     sid = ctx.settings.secret("SUBSTACK_SID")
     if not sid:
         raise LoginExpired(LABEL)
-    url = API + (f"&cursor={urllib.parse.quote(cursor)}" if cursor else "")
     status, body, _ = web.request(url, {"Accept": "application/json", "Cookie": f"substack.sid={sid}"})
     if status in (401, 403):
         raise LoginExpired(LABEL)
@@ -29,11 +29,21 @@ def _page(ctx: Context, cursor: str | None) -> dict:
     return json.loads(body)
 
 
-def to_item(post: dict, publications: dict) -> Item:
+def _page(ctx: Context, cursor: str | None) -> dict:
+    return get_json(ctx, API + (f"&cursor={urllib.parse.quote(cursor)}" if cursor else ""))
+
+
+def timestamp(iso: str) -> float:
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+
+
+def to_item(post: dict, publications: dict, source: str = NAME, when: str | None = None) -> Item:
+    """A post as an item. Saved and liked posts share the id substack:<post id>, so a post that is
+    both saved and liked is recorded once."""
     authors = [b.get("name") for b in post.get("publishedBylines") or [] if b.get("name")]
     return Item(
-        f"{NAME}:{post['id']}", NAME, "podcast" if post.get("podcast_url") else "article", post.get("title") or "Untitled",
-        post["canonical_url"], datetime.fromisoformat(post["saved_at"].replace("Z", "+00:00")).timestamp(),
+        f"{NAME}:{post['id']}", source, "podcast" if post.get("podcast_url") else "article", post.get("title") or "Untitled",
+        post["canonical_url"], timestamp(when or post["saved_at"]),
         link=post["canonical_url"],
         payload={
             "publication": publications.get(post.get("publication_id")),

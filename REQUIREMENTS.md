@@ -21,7 +21,7 @@ Turn what I save across social platforms into audio I can listen to on my commut
 |---|---|---|
 | S1 | X bookmarks | 1 |
 | S2 | Reddit saved items | 1 |
-| S3 | Substack saved posts | 1 |
+| S3 | Substack saved posts, and liked posts and Notes (likes added 2026-11-15, after Substack moved the save button out of the main view; likes have their own first run) | 1 |
 | S4 | Hacker News favorites | 1 |
 
 YouTube is not a source. It is only used when a saved item links to a video (C3).
