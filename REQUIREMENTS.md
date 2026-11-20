@@ -40,7 +40,7 @@ YouTube is not a source. It is only used when a saved item links to a video (C3)
 - C2. For a post, include the whole thread.
 - C2a. A saved Reddit item can be a whole post or a single comment. A saved comment becomes the focus of its episode, with its parent post as context.
 - C2b. An X Article is read from its full text in the API, not from the short post that carries it. An author's thread is fetched while it is recent, so X is checked at least daily.
-- C3. When a saved item links to a YouTube video or other spoken media, use its original audio track.
+- C3. When a saved item is or links to a video or other spoken media, including a video uploaded to an X post, it is transcribed locally (Whisper large-v3-turbo on MLX) and the writer retells it from the transcript (changed 2026-11-20; it used to play the original audio, which made long screen-share videos unlistenable).
 - C4. Paywalled content: use only what is publicly available, and say in the episode that it is a preview.
 - C5. Articles are retold for the ear, covering every substantive idea. Tables and figures become spoken takeaways. No fact is added that the source does not support.
 - C6. Discussions are synthesized in a clearly labelled section: first a short overview of the whole conversation, then a deeper pass by theme, with a few real comments quoted word for word. The whole thread is the input.
@@ -62,7 +62,7 @@ YouTube is not a source. It is only used when a saved item links to a video (C3)
 - T1. A small local database records which items have already been processed, so audio is never produced twice for the same item.
 - T2. Listening progress is left to the podcast app and is not reported back to Earmark.
 - T3. Audio files are deleted after 30 days. The record of processed items is kept permanently.
-- T4. Alert me if X API spending exceeds $5 in a month.
+- T4. Alert me if X API spending exceeds $5 in a month. The estimate prices each response at X's rates: owned reads such as my bookmarks at $0.001, other posts at $0.005, users at $0.010, and expanded objects from 2026-11-22, when X starts billing them (corrected 2026-11-20; it had priced every object at $0.005 and counted free expansions).
 
 ### Operation
 

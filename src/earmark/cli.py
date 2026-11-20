@@ -27,13 +27,13 @@ def cmd_x_auth(settings, args) -> None:
 
 def cmd_status(settings, args) -> None:
     from .sources.base import Context
-    from .sources.x.api import estimated_spend, reads_this_month
+    from .sources.x.api import estimated_spend
     from .storage import db as store
 
     db = store.connect(settings.db_path)
     counts = dict(db.execute("SELECT status, COUNT(*) FROM items GROUP BY status").fetchall())
     print("Items: " + (", ".join(f"{s} {n}" for s, n in sorted(counts.items())) or "none yet"))
-    print(f"X this month: {reads_this_month(Context(settings, db))} reads, about ${estimated_spend(Context(settings, db)):.2f}")
+    print(f"X this month: about ${estimated_spend(Context(settings, db)):.2f} (estimate; X's developer console has the exact figure)")
     print(f"Feed: {settings.base_url}/feed.xml")
     skipped = db.execute("SELECT id, title, decision_reason FROM items WHERE status='skipped' ORDER BY discovered_at DESC LIMIT ?",
                          (args.skipped,)).fetchall()

@@ -99,3 +99,14 @@ def test_level_matches_loudness_and_leaves_silence_alone():
     assert abs(float(np.sqrt(np.mean(level(loud) ** 2))) - 0.06) < 1e-3
     quiet = np.zeros(100, dtype=np.float32)
     assert np.array_equal(level(quiet), quiet)
+
+
+def test_transcripts_are_paragraphs_with_minute_marks_and_steer_the_writer():
+    from earmark.audio.transcribe import paragraphs
+    from earmark.llm import writer
+    segments = [{"start": 0.0, "text": " Hello."}, {"start": 30.0, "text": "Today, skills."}, {"start": 61.5, "text": "Next part."},
+                {"start": 70.0, "text": " "}, {"start": 125.0, "text": "Wrap up."}]
+    assert paragraphs(segments) == "[0:00] Hello. Today, skills.\n\n[1:01] Next part.\n\n[2:05] Wrap up."
+    with_text = writer.system_prompt("X", {"title": "Deep dive", "seconds": 4170, "transcript": "[0:00] Hello."})
+    assert "about 70 minutes" in with_text and "<recording_transcript>" in with_text and "never quote" in with_text
+    assert "could not be transcribed" in writer.system_prompt("X", {"title": "Deep dive", "seconds": 60})

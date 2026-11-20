@@ -16,7 +16,7 @@ SAMPLE_RATE = 24000
 SEED = 7
 MAX_CHUNK_CHARS = 420  # the model caps each generation, so long paragraphs are split by sentence
 TARGET_LOUDNESS = 0.06  # RMS every spoken piece is leveled to
-PARAGRAPH_GAP, CHUNK_GAP, MEDIA_GAP = 0.5, 0.12, 1.0
+PARAGRAPH_GAP, CHUNK_GAP = 0.5, 0.12
 MLX_CACHE_BYTES = 1 << 30  # 1 GB
 
 VOICES = {
@@ -108,14 +108,11 @@ class Narrator:
             parts += [level(audio), silence(CHUNK_GAP)]
         return np.concatenate(parts) if parts else silence(0)
 
-    def render(self, script: Script, out: Path, media: np.ndarray | None = None, log=print) -> float:
-        """Write the episode MP3 and return its length in seconds. Media audio, if any, plays after
-        the first narrator paragraph (C3)."""
+    def render(self, script: Script, out: Path, log=print) -> float:
+        """Write the episode MP3 and return its length in seconds."""
         parts = []
         for index, line in enumerate(script.lines):
             parts += [self.speak(line.text, line.voice), silence(PARAGRAPH_GAP)]
-            if index == 0 and media is not None:
-                parts += [silence(MEDIA_GAP), level(media), silence(MEDIA_GAP)]
             if (index + 1) % 10 == 0:
                 log(f"  voiced {index + 1}/{len(script.lines)} paragraphs")
         audio = np.concatenate(parts)

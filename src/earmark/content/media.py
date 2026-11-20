@@ -39,8 +39,8 @@ def download_audio(url: str, folder: Path) -> Path:
 
     folder.mkdir(parents=True, exist_ok=True)
     options = {
-        "quiet": True, "no_warnings": True, "noplaylist": True,
-        "format": "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio[ext=mp3]",
+        "quiet": True, "no_warnings": True, "noplaylist": True, "noprogress": True,
+        "format": "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio[ext=mp3]/bestaudio[ext=mp4]",  # X serves AAC audio as mp4
         "outtmpl": str(folder / "source.%(ext)s"),
     }
     if Path(urllib.parse.urlparse(url).path).suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:

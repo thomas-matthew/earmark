@@ -43,9 +43,11 @@ def test_x_enrich_fetches_thread_and_linked_posts(ctx, monkeypatch):
             return {"data": [{"id": "11", "created_at": "2", "text": "part two https://t.co/a",
                               "entities": {"urls": [{"url": "https://t.co/a", "expanded_url": "https://x.com/me/status/50"}]}}]}
         if path == "/tweets":
-            assert params["ids"] == "50"
-            return {"data": [{"id": "50", "author_id": "u1", "text": "what the site is"}],
-                    "includes": {"users": [{"id": "u1", "username": "me"}]}}
+            assert params["ids"] == "50" and "expansions" not in params
+            return {"data": [{"id": "50", "author_id": "u1", "text": "what the site is"}]}
+        if path == "/users":
+            assert params["ids"] == "u1"
+            return {"data": [{"id": "u1", "username": "me"}]}
         raise AssertionError(path)
 
     monkeypatch.setattr(x.api, "get", fake_get)
@@ -53,6 +55,7 @@ def test_x_enrich_fetches_thread_and_linked_posts(ctx, monkeypatch):
     x.enrich(ctx, item)
     assert item.payload["thread"] == ["part two https://x.com/me/status/50"]
     assert item.payload["linked"] == [{"author": "me", "text": "what the site is"}]
+    assert x.usernames(ctx, ["u1"]) == {"u1": "me"} and calls.count("/users") == 1  # remembered, not paid for again
     material = x.material(ctx, {"payload": json.dumps(item.payload), "link": None})
     assert "<linked_x_post by=@me>\nwhat the site is" in material
 
@@ -199,3 +202,54 @@ def test_substack_likes_first_run_dedupes_saved_posts_and_later_runs_stop_at_kno
     assert first[0].payload["publication"] == "Radar" and first[0].source == "substack_likes"
     later = substack_likes.fetch(ctx, {"substack:3"}, first_run=False)
     assert later == []  # the first page holds a known like, so older pages are not read
+
+
+def test_x_video_uploaded_to_a_post_is_found_and_used_as_the_recording():
+    tweet = {"id": "20", "author_id": "u1", "created_at": "2026-11-19T10:00:00.000Z", "text": "70 minutes https://t.co/v",
+             "note_tweet": {"text": "the long version without the video address"},
+             "attachments": {"media_keys": ["13_9"]},
+             "entities": {"urls": [{"url": "https://t.co/v", "media_key": "13_9",
+                                    "expanded_url": "https://x.com/matt/status/20/video/1"}]}}
+    item = x.to_item(tweet, {"u1": "matt"}, {})
+    assert item.link is None and item.payload["video"] == {"url": "https://x.com/matt/status/20/video/1"}
+    photo = {**tweet, "attachments": {"media_keys": ["3_8"]}, "entities": {"urls": [
+        {"url": "https://t.co/p", "media_key": "3_8", "expanded_url": "https://x.com/matt/status/20/photo/1"}]}}
+    assert x.to_item(photo, {"u1": "matt"}, {}).payload["video"] is None
+    assert pipeline._media_link({"payload": json.dumps(item.payload), "link": None}) == "https://x.com/matt/status/20/video/1"
+    assert "video uploaded to X: https://x.com/matt/status/20/video/1" in x.material(None, {"payload": json.dumps(item.payload), "link": None})
+
+
+def test_x_bookmarks_skip_expansions_and_look_up_only_new_authors(ctx, monkeypatch):
+    calls = []
+    now = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+
+    def fake_get(_ctx, path, params=None, owned=False):
+        calls.append((path, owned, dict(params or {})))
+        if path.endswith("/bookmarks"):
+            assert "expansions" not in params and params["max_results"] == 10
+            return {"data": [{"id": "2", "author_id": "u2", "created_at": now, "text": "new",
+                              "referenced_tweets": [{"type": "quoted", "id": "9"}]},
+                             {"id": "1", "author_id": "u1", "created_at": now, "text": "known"}]}
+        if path == "/users":
+            return {"data": [{"id": "u2", "username": "bob"}]}
+        if path == "/tweets":
+            return {"data": [{"id": "9", "text": "quoted words"}]}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(x.api, "get", fake_get)
+    store.meta_set(ctx.db, "x_user_id", "me")
+    items = x.fetch(ctx, {"x:1"}, first_run=False)
+    assert [i.id for i in items] == ["x:2"] and items[0].url == "https://x.com/bob/status/2"
+    assert items[0].payload["quoted"] == ["quoted words"]
+    assert [c[:2] for c in calls] == [("/users/me/bookmarks", True), ("/users", False), ("/tweets", False)]
+    assert calls[1][2]["ids"] == "u2"  # only the new bookmark's author
+
+
+def test_x_spend_prices_owned_reads_users_and_expansions_from_november_22():
+    from earmark.sources.x.api import EXPANSIONS_BILLED_FROM, cost
+    page = {"data": [{"id": "1"}, {"id": "2"}], "includes": {"users": [{"id": "u"}], "tweets": [{"id": "3"}]}}
+    before, after = EXPANSIONS_BILLED_FROM - 60, EXPANSIONS_BILLED_FROM + 60
+    assert cost("/users/me/bookmarks", page, owned=True, now=before) == pytest.approx(0.002)
+    assert cost("/users/me/bookmarks", page, owned=True, now=after) == pytest.approx(0.002 + 0.010 + 0.005)
+    assert cost("/tweets/search/recent", {"data": [{"id": "1"}]}, now=before) == pytest.approx(0.005)
+    assert cost("/users", {"data": [{"id": "u"}]}, now=before) == pytest.approx(0.010)

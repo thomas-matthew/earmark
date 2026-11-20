@@ -30,7 +30,6 @@ class Settings:
     secrets: dict[str, str]
     ntfy_topic: str | None
     ntfy_server: str
-    x_cost_per_read: float
     x_monthly_alert: float
     retention_days: int
 
@@ -76,7 +75,6 @@ def load(env_file: Path = ENV_FILE) -> Settings:
         ntfy_topic=env.get("NTFY_TOPIC") or None,
         ntfy_server=env.get("NTFY_SERVER", "https://ntfy.sh").rstrip("/"),
         # X pay-per-use bills per post read. Earmark counts reads and estimates spend from this rate.
-        x_cost_per_read=float(env.get("X_COST_PER_READ", "0.005")),
         x_monthly_alert=float(env.get("X_MONTHLY_ALERT", "5")),
         retention_days=int(env.get("EARMARK_RETENTION_DAYS", "30")),
     )

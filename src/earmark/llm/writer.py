@@ -26,7 +26,8 @@ def system_prompt(source_label: str, media: dict | None) -> str:
     media_rule = ""
     if media:
         minutes = round((media.get("seconds") or 0) / 60) or "an unknown number of"
-        media_rule = prompts.MEDIA_RULE.format(media_title=media.get("title") or "a recording", media_minutes=minutes)
+        rule = prompts.MEDIA_RULE if media.get("transcript") else prompts.MEDIA_UNAVAILABLE_RULE
+        media_rule = rule.format(media_title=media.get("title") or "a recording", media_minutes=minutes)
     return prompts.WRITER.format(extra_pages=EXTRA_PAGES, source=source_label, media_rule=media_rule)
 
 

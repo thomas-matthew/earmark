@@ -9,7 +9,8 @@ import traceback
 from dataclasses import dataclass, field
 
 from . import sources
-from .audio.voice import SAMPLE_RATE, Narrator
+from .audio import transcribe
+from .audio.voice import Narrator
 from .common import notify
 from .common.web import LoginExpired
 from .config import Settings
@@ -133,16 +134,38 @@ def _media_link(row) -> str | None:
     payload = json.loads(row["payload"])
     if payload.get("podcast_url"):
         return payload["podcast_url"]
+    if (payload.get("video") or {}).get("url"):  # a video uploaded to an X post
+        return payload["video"]["url"]
     return row["link"] if media.is_media_link(row["link"]) else None
 
 
+def _recording(settings: Settings, row, link: str) -> dict | None:
+    """Details and local transcript of the item's video or podcast (C3). Without a transcript the
+    episode is still made, from the post and the recording's description."""
+    try:
+        info = media.describe(link)
+    except Exception as exc:  # noqa: BLE001  fall back to an ordinary episode about the link
+        log(f"  recording details unavailable: {exc}")
+        return None
+    work = settings.work_dir / row["id"].replace(":", "_")
+    try:
+        info["transcript"] = transcribe.transcribe(media.download_audio(link, work))
+        log(f"  transcribed {round((info.get('seconds') or 0) / 60)} min recording: {len(info['transcript'])} characters")
+    except Exception as exc:  # noqa: BLE001
+        log(f"  could not transcribe the recording: {exc}")
+    finally:
+        for leftover in work.glob("*"):
+            leftover.unlink()
+    return info
+
+
 def _publish(ctx: Context, settings: Settings, narrator: Narrator, row, script: Script, description: str,
-             status: str, media_audio=None) -> None:
+             status: str) -> None:
     name = f"{secrets.token_urlsafe(18)}.mp3"
     scripts = settings.data / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
     (scripts / f"{row['id'].replace(':', '_')}.txt").write_text(script.text(), encoding="utf-8")  # kept for checking episodes
-    seconds = narrator.render(script, settings.feed_dir / name, media_audio, log=log)
+    seconds = narrator.render(script, settings.feed_dir / name, log=log)
     store.update(ctx.db, row["id"], status=status, episode_title=script.title or row["title"], description=description,
                  mp3=name, bytes=(settings.feed_dir / name).stat().st_size, seconds=seconds, published_at=time.time())
     write_feed(ctx.db, settings.feed_dir, settings.base_url)
@@ -168,24 +191,12 @@ def process(ctx: Context, settings: Settings, narrator: Narrator, row, report: R
         log(f"  included ({decision.confidence}): {decision.reason}")
 
     link = _media_link(row)
-    info = None
-    if link:
-        try:
-            info = media.describe(link)
-        except Exception as exc:  # noqa: BLE001  fall back to an ordinary episode about the link
-            log(f"  recording details unavailable: {exc}")
-            link = None
+    info = _recording(settings, row, link) if link else None
+    if info and info.get("transcript"):
+        material += (f"\n\n<recording_transcript title={info.get('title')!r} by={info.get('channel')!r}>\n"
+                     f"{info['transcript']}\n</recording_transcript>")
     result = asyncio.run(writer.write(row, material, module.LABEL, info, log=log))
-    media_audio = None
-    if link:
-        work = settings.work_dir / row["id"].replace(":", "_")
-        try:
-            media_audio = media.decode(media.download_audio(link, work), SAMPLE_RATE)
-        finally:
-            for leftover in work.glob("*"):
-                leftover.unlink()
-    _publish(ctx, settings, narrator, row, result.script, _description(row, module, len(result.remaining)),
-             "done", media_audio)
+    _publish(ctx, settings, narrator, row, result.script, _description(row, module, len(result.remaining)), "done")
     if result.remaining:
         log("  remaining review issues: " + json.dumps(result.remaining, ensure_ascii=False)[:2000])
     report.published += 1

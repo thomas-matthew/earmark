@@ -16,7 +16,7 @@ sources ──> relevance check ──> writer agent ⇄ reviewer ──> Breeze
 1. **Find new saves.** Each source lists my saved items. On Substack that means both saved posts and likes: liked posts, and liked Notes with their text, images and the post or links they share. Items already in the local database are ignored, so nothing is made twice. Earmark never changes anything on the platforms.
 2. **Relevance check.** Reddit and X saves are judged one at a time by Sonnet on the full post and thread. A skip that Sonnet is unsure about counts as include. Skips are logged and can be overridden.
 3. **Write.** A Claude Agent SDK agent reads the item, its thread and the linked page (and can look at charts), then writes a script. Short links such as `t.co` are expanded, X posts linked from a saved post or its thread are fetched through the X API, and pages that only render with JavaScript are opened in headless Chrome. A separate reviewer with no tools checks the script against the sources and reports problems, and the writer fixes them in one round.
-4. **Voice.** Breeze TTS 2 narrates locally on the Mac's GPU, with a second voice for quoted comments. When a save links to a YouTube video or podcast episode, its original audio plays inside the episode.
+4. **Voice.** Breeze TTS 2 narrates locally on the Mac's GPU, with a second voice for quoted comments. When a save is or links to a video or podcast episode (YouTube, Vimeo, a video uploaded to an X post, a Substack podcast), Whisper transcribes it locally and the writer retells it from the transcript.
 5. **Publish.** The episode joins the RSS feed. Audio is deleted after 30 days.
 
 Problems such as an expired login, a failed run or high X spending send a push alert through ntfy.
@@ -39,7 +39,7 @@ Python and all packages stay inside this folder, in `.venv/`. Models are shared 
 export HF_HOME="$HOME/Dev/labs/huggingface"
 ```
 
-Breeze TTS 2 (about 7.4 GB) downloads there on the first run. Its licence allows personal, non-commercial use only.
+Breeze TTS 2 (about 7.4 GB) downloads there on the first run, and Whisper large-v3-turbo (about 1.6 GB) the first time a video or podcast is transcribed. Its licence allows personal, non-commercial use only.
 
 Google Chrome must be installed in `/Applications`. Earmark uses it, headless, to read pages that only show their text after running JavaScript. Without Chrome, those pages are read as plain HTML and usually come back empty.
 
@@ -95,7 +95,7 @@ X bookmarks need the official API, which is pay-per-use.
 
    The token is saved to `data/x_token.json` (mode 600) and refreshes itself.
 
-Costs: the first run reads every existing bookmark once (a one-time cost of about $2 for 200 bookmarks). Daily checks then cost a few cents. Earmark estimates monthly spend from its read count and alerts above `X_MONTHLY_ALERT` (default $5). X's developer console shows the exact figure.
+Costs: reading your own bookmarks is an owned read at $0.001 a post, so the daily check of the 10 newest bookmarks costs about a cent. A new bookmark then costs a few cents more: its author ($0.010, looked up once and remembered), any quoted or linked posts and the author's thread ($0.005 a post). Since 2026-11-22 X bills objects pulled in through expansions, so Earmark avoids expansions. It prices every response at these rates, adds them up per month and alerts above `X_MONTHLY_ALERT` (default $5). The estimate errs high, because X does not charge twice for the same object within a UTC day; X's developer console shows the exact figure.
 
 ### 4. Claude (Agent SDK)
 
@@ -194,7 +194,7 @@ src/earmark/
   content/
     extract.py        page text and image lists, public addresses only
     browser.py        headless Chrome for pages drawn by JavaScript
-    media.py          original audio for linked videos and podcasts
+    media.py          finds and downloads the audio of linked videos and podcasts
   llm/
     claude.py         Agent SDK sessions, locked down
     models.py         which Claude model each job uses (change models here)
@@ -205,6 +205,7 @@ src/earmark/
     reviewer.py       reports issues; never edits
     script.py         the N:/Q: script format and quote checks
   audio/voice.py      Breeze narration, loudness leveling, MP3
+  audio/transcribe.py Whisper speech-to-text for videos and podcasts
   delivery/
     feed.py           RSS feed
     server.py         HTTP server with resumable downloads
